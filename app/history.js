@@ -3,13 +3,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TrendBars } from '../components/TrendBars';
 import { Avatar, Banner, Button, Card, Chip, KeyValue, SectionTitle } from '../components/ui';
 import { accents, colors, radius, space, type } from '../constants/theme';
 import { educationBonus, profileSubtitle } from '../utils/profileStore';
 import { profileStore, useProfiles } from '../utils/profiles';
 import { compareWithPrevious, longDate, shortDateTime } from '../utils/resultSummary';
+import { confirmDialog } from '../utils/dialog';
 
 const TABS = [
   { key: 'clock', label: '畫鐘測驗', color: accents.canvas },
@@ -60,10 +61,8 @@ export default function HistoryScreen() {
   const compare = compareWithPrevious(records);
 
   const remove = r => {
-    Alert.alert('刪除這筆紀錄？', `${shortDateTime(r.at)} 的${tab === 'clock' ? '畫鐘' : '連線'}測驗`, [
-      { text: '取消', style: 'cancel' },
-      { text: '刪除', style: 'destructive', onPress: () => profileStore.deleteResult(r.id) },
-    ]);
+    confirmDialog('刪除這筆紀錄？', `${shortDateTime(r.at)} 的${tab === 'clock' ? '畫鐘' : '連線'}測驗`, { okText: '刪除', destructive: true })
+      .then(ok => ok && profileStore.deleteResult(r.id));
   };
 
   return (

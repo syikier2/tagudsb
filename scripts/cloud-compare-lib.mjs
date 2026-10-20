@@ -4,12 +4,15 @@
 import { refineWithCloud, renderGlyph, textToDigit } from '../utils/cloudAssist.js';
 import { recognizeCluster } from '../utils/digitRecognizer.js';
 
-/** fixtures 的樣本格式 → recognizeCluster 結果（骨架像素沒有筆畫順序） */
+/**
+ * fixtures 的樣本格式 → recognizeCluster 結果
+ * kind = 'canvas'（App 收集的手繪樣本）有筆畫順序；其他（截圖、照片骨架）點沒有順序
+ */
 export function recognizeSample(sample) {
+  const ordered = sample.kind === 'canvas';
   const strokes = sample.strokes.map((s, i) => ({
     points: s.map(([x, y]) => ({ x, y })),
-    loop: Boolean(sample.loops?.[i]),
-    unordered: true,
+    ...(ordered ? {} : { loop: Boolean(sample.loops?.[i]), unordered: true }),
   }));
   return recognizeCluster({ strokes });
 }

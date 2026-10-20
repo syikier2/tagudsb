@@ -2,11 +2,12 @@
 // 新增或編輯受測者（網址帶 id 就是編輯）。
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Banner, Button, Card, Chip } from '../components/ui';
 import { colors, radius, space, type } from '../constants/theme';
 import { EDUCATION, SEX, validateProfile } from '../utils/profileStore';
 import { profileStore, useProfiles } from '../utils/profiles';
+import { confirmDialog } from '../utils/dialog';
 
 export default function ProfileEditScreen() {
   const { id } = useLocalSearchParams();
@@ -40,17 +41,15 @@ function ProfileForm({ existing, state }) {
     if (!existing) return;
     const target = existing;
     const count = state.results.filter(r => r.profileId === target.id).length;
-    Alert.alert(
+    confirmDialog(
       `刪除「${target.name}」？`,
       count ? `他的 ${count} 筆測驗紀錄也會一起刪除，無法復原。` : '刪除後無法復原。',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '刪除', style: 'destructive',
-          onPress: () => { profileStore.deleteProfile(target.id); router.back(); },
-        },
-      ]
-    );
+      { okText: '刪除', destructive: true },
+    ).then(ok => {
+      if (!ok) return;
+      profileStore.deleteProfile(target.id);
+      router.back();
+    });
   };
 
   return (

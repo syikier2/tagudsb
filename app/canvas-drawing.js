@@ -7,14 +7,15 @@
 // 4. 作畫過程指標，只供觀察不計分（utils/drawingStats.js）
 import { Stack } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useWindowSize } from '../hooks/useWindowSize';
 import DrawingCanvas from '../components/DrawingCanvas';
 import { ClockResult, DebugPanel, DrawingProcess, ErrorBox, HandsResult, readingText } from '../components/ClockResult';
-import { SavedNotice, TesterBar } from '../components/TesterBar';
+import { CollectedNotice, SavedNotice, TesterBar } from '../components/TesterBar';
 import { Button } from '../components/ui';
 import { accents, colors, radius, space, type } from '../constants/theme';
 import { profileStore } from '../utils/profiles';
+import { collectSamples } from '../utils/samples';
 import { clockSummary } from '../utils/resultSummary';
 import { cloudSummaryText, refineWithCloud } from '../utils/cloudAssist';
 import { scoreTokens } from '../utils/clockScoring';
@@ -24,11 +25,12 @@ import { scoreHands, TARGET_TIME, targetsFromNumbers } from '../utils/handsScori
 import { getCloudAssist } from '../utils/settings';
 import { clusterStrokes, parseStrokes, renderSheet } from '../utils/strokeClusters';
 import { annotateImages } from '../utils/visionApi';
+import { notify } from '../utils/dialog';
 
 const TIME_TEXT = `${TARGET_TIME.hour} 點 ${TARGET_TIME.minute} 分`;
 const NUMBER_QUADRANT_TOLERANCE = 45; // MoCA「數字位置大致正確」：誤差在半個象限內
 
-const newSession = () => ({ startedAt: null, clears: 0, undos: 0, recordId: null });
+const newSession = () => ({ startedAt: null, clears: 0, undos: 0, recordId: null, collected: false });
 
 export default function CanvasDrawingScreen() {
   const { width, height } = useWindowSize();
@@ -48,12 +50,14 @@ export default function CanvasDrawingScreen() {
   const [error, setError] = useState('');
   const [debug, setDebug] = useState(null);
   const [saved, setSaved] = useState(undefined); // undefined = 還沒有結果；null = 沒有受測者，沒存
+  const [collected, setCollected] = useState(0);   // 這次收集了幾個辨識樣本
 
   const resetResult = () => {
     setResult(null);
     setError('');
     setDebug(null);
     setSaved(undefined);
+    setCollected(0);
   };
 
   const handleBegin = () => {
@@ -96,7 +100,7 @@ export default function CanvasDrawingScreen() {
 
     const strokes = parseStrokes(json);
     if (strokes.length === 0) {
-      Alert.alert('畫布是空的', `請先在圓圈裡寫上 1 到 12，再畫出指向 ${TIME_TEXT} 的指針。`);
+      notify('畫布是空的', `請先在圓圈裡寫上 1 到 12，再畫出指向 ${TIME_TEXT} 的指針。`);
       return;
     }
 
@@ -162,6 +166,13 @@ export default function CanvasDrawingScreen() {
       const record = profileStore.addResult(clockSummary('canvas', { numbers: scored, numbersPass, hands, stats, cloud }));
       session.current.recordId = record?.id ?? null;
       setSaved(record);
+      // 辨識樣本收集（開發用，有開啟才收；不影響評分）
+      // 同一張圖重複送出只收一次
+      if (!session.current.collected) {
+        const n = collectSamples({ clusters, recs, scored, kind: 'canvas' });
+        session.current.collected = n > 0;
+        setCollected(n);
+      }
       setDebug({ sheetBase64: sheet.base64, sheetWidth: sheet.width, sheetHeight: sheet.height, readings, ignored });
     } catch (e) {
       console.error(e);
@@ -214,6 +225,7 @@ export default function CanvasDrawingScreen() {
         {!loading && result && (
           <>
             <SavedNotice saved={saved} />
+            <CollectedNotice count={collected} />
             <ClockResult result={result.numbers} accent={accents.canvas} title="數字評估" />
             <HandsResult hands={result.hands} numbersPass={result.numbersPass} timeText={TIME_TEXT} />
             <DrawingProcess stats={result.stats} />

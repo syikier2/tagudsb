@@ -3,13 +3,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { useMemo, useSyncExternalStore } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Avatar, Button, Card, SectionTitle } from '../components/ui';
 import { accents, colors, radius, space, type } from '../constants/theme';
 import { profileSubtitle } from '../utils/profileStore';
 import { profileStore, useProfiles } from '../utils/profiles';
 import { shortDateTime } from '../utils/resultSummary';
+import { useSamples } from '../utils/samples';
 import { cloudAvailable, getCloudAssist, isWeb, setCloudAssist, subscribeSettings } from '../utils/settings';
+import { confirmDialog } from '../utils/dialog';
 
 const CONSENT_TEXT =
   '開啟後，畫鐘測驗中手機沒把握的數字（例如 7 和 9 分不清楚），會把「那一個字」單獨畫成小圖，' +
@@ -30,6 +32,7 @@ export default function Home() {
   const active = state.profiles.find(p => p.id === state.activeId) || null;
   const cloudOn = useSyncExternalStore(subscribeSettings, getCloudAssist, getCloudAssist);
   const available = cloudAvailable();
+  const samples = useSamples();
 
   const last = useMemo(
     () => (active ? profileStore.resultsFor(active.id)[0] : null),
@@ -40,10 +43,7 @@ export default function Home() {
 
   const toggleCloud = (on) => {
     if (!on) return setCloudAssist(false);
-    Alert.alert('雲端輔助辨識', CONSENT_TEXT, [
-      { text: '取消', style: 'cancel' },
-      { text: '同意開啟', onPress: () => setCloudAssist(true) },
-    ]);
+    confirmDialog('雲端輔助辨識', CONSENT_TEXT, { okText: '同意開啟' }).then(ok => ok && setCloudAssist(true));
   };
 
   const pickProfile = () => router.push(state.profiles.length ? '/profiles' : '/profile-edit');
@@ -134,6 +134,17 @@ export default function Home() {
           trackColor={{ true: colors.primary, false: colors.line }}
           thumbColor="#FFFFFF"
         />
+      </Card>
+
+      <Card style={[styles.cloudRow, { marginTop: space.md }]} onPress={() => router.push('/samples')} accessibilityLabel="辨識樣本收集">
+        <Ionicons name="albums-outline" size={26} color={colors.primary} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cloudTitle}>辨識樣本收集（開發用）</Text>
+          <Text style={styles.cloudDesc}>
+            {samples.enabled ? `收集中・已收 ${samples.samples.length} 個` : '請自願者畫鐘，收集手寫數字來改進辨識'}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={22} color={colors.inkFaint} />
       </Card>
 
       <Text style={styles.disclaimer}>本 App 為認知功能篩檢輔助工具，結果僅供參考，不能取代醫療診斷。{'\n'}{isWeb ? '受測者資料只存在這個瀏覽器裡。' : '受測者資料只存在這支手機裡。'}</Text>

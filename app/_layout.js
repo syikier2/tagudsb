@@ -4,10 +4,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { colors } from '../constants/theme';
 import { loadProfiles } from '../utils/profiles';
+import { loadSamples } from '../utils/samples';
 
 export default function Layout() {
   useEffect(() => {
     loadProfiles(); // 讀取手機裡的受測者資料與歷史紀錄
+    loadSamples();  // 辨識樣本收集（開發用）
   }, []);
 
   return (

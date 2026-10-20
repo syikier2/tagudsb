@@ -98,6 +98,7 @@ export async function analyzePhotoClock(base64, options = {}) {
       binaryPreview: photo.binaryPreview,
       sheet: renderSheet(grouped.clusters),
       readings: pass.readings,
+      clusters: grouped.clusters, // 辨識樣本收集用（utils/sampleCollect.js）
       ignored: grouped.ignored,
     },
   };

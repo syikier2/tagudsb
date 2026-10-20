@@ -52,6 +52,18 @@ export function SavedNotice({ saved }) {
   );
 }
 
+/** 結果下方：這次收集了幾個辨識樣本（有開啟樣本收集才會顯示） */
+export function CollectedNotice({ count }) {
+  if (!count) return null;
+  return (
+    <View style={styles.notice}>
+      <Banner kind="info" icon="albums-outline" action="查看" onAction={() => router.push('/samples')}>
+        已收集 {count} 個數字樣本
+      </Banner>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row', alignItems: 'center', gap: space.sm, alignSelf: 'center',

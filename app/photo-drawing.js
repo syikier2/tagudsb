@@ -8,18 +8,20 @@ import * as ImagePicker from 'expo-image-picker';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useWindowSize } from '../hooks/useWindowSize';
 import { ClockResult, DebugPanel, ErrorBox, HandsResult, readingText } from '../components/ClockResult';
-import { SavedNotice, TesterBar } from '../components/TesterBar';
+import { CollectedNotice, SavedNotice, TesterBar } from '../components/TesterBar';
 import { Button } from '../components/ui';
 import { accents, colors, radius, space, type } from '../constants/theme';
 import { profileStore } from '../utils/profiles';
+import { collectSamples } from '../utils/samples';
 import { clockSummary } from '../utils/resultSummary';
 import { TARGET_TIME } from '../utils/handsScoring';
 import { analyzePhotoClock } from '../utils/photoClock';
 import { getCloudAssist } from '../utils/settings';
 import { annotateImages } from '../utils/visionApi';
+import { notify } from '../utils/dialog';
 
 const TIME_TEXT = `${TARGET_TIME.hour} 點 ${TARGET_TIME.minute} 分`;
 const ANALYSIS_WIDTH = 1000; // 分析前把照片縮放到這個寬度
@@ -41,6 +43,7 @@ export default function PhotoDrawingScreen() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [savedRecord, setSavedRecord] = useState(undefined); // undefined = 還沒有結果；null = 沒有受測者，沒存
+  const [collected, setCollected] = useState(0);
 
   const pickImage = async (source) => {
     if (loading) return;
@@ -49,7 +52,7 @@ export default function PhotoDrawingScreen() {
       if (source === 'camera') {
         const { granted } = await ImagePicker.requestCameraPermissionsAsync();
         if (!granted) {
-          Alert.alert('需要相機權限', '請到手機設定中允許本 App 使用相機，才能拍照分析。');
+          notify('需要相機權限', '請到手機設定中允許本 App 使用相機，才能拍照分析。');
           return;
         }
         picked = await ImagePicker.launchCameraAsync(PICKER_OPTIONS);
@@ -57,7 +60,7 @@ export default function PhotoDrawingScreen() {
         picked = await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS);
       }
     } catch {
-      Alert.alert('無法開啟', source === 'camera' ? '無法開啟相機（模擬器可能沒有相機）。' : '無法開啟相簿。');
+      notify('無法開啟', source === 'camera' ? '無法開啟相機（模擬器可能沒有相機）。' : '無法開啟相簿。');
       return;
     }
     if (picked.canceled || !picked.assets?.length) return;
@@ -69,6 +72,7 @@ export default function PhotoDrawingScreen() {
     setResult(null);
     setError('');
     setSavedRecord(undefined);
+    setCollected(0);
     setLoadingText('分析中…');
     setLoading(true);
     try {
@@ -88,6 +92,9 @@ export default function PhotoDrawingScreen() {
       }
       setResult(r);
       setSavedRecord(profileStore.addResult(clockSummary('photo', r))); // 存到目前受測者的歷史紀錄
+      setCollected(collectSamples({
+        clusters: r.debug.clusters, recs: r.debug.readings.map(x => x.rec), scored: r.numbers, kind: 'photo',
+      }));
     } catch (e) {
       console.error(e);
       setError('處理照片時發生錯誤，請再試一次。');
@@ -136,6 +143,7 @@ export default function PhotoDrawingScreen() {
         {!loading && result && (
           <>
             <SavedNotice saved={savedRecord} />
+            <CollectedNotice count={collected} />
             <ClockResult result={result.numbers} accent={accents.photo} title="數字評估" />
             <HandsResult
               hands={result.hands}
