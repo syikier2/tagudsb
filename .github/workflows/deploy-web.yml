@@ -1,0 +1,57 @@
+# 每次 push 到 main（或 master）就自動：安裝套件 → 跑自動測試 → 產生網頁版 → 發布到 GitHub Pages。
+# 第一次使用前，要到 GitHub 專案的 Settings → Pages，把 Source 設成「GitHub Actions」。
+# 網址：https://你的帳號.github.io/專案名稱/
+name: 發布網頁版
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch: # 也可以在 Actions 頁面手動執行
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安裝套件
+        run: npm ci
+
+      - name: 自動測試
+        run: npm test
+
+      - name: 產生網頁版（不含 Google 金鑰）
+        run: npm run build:web
+        env:
+          # GitHub Pages 的網址多一層「/專案名稱」
+          EXPO_BASE_URL: /${{ github.event.repository.name }}
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
