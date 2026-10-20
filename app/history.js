@@ -12,9 +12,26 @@ import { profileStore, useProfiles } from '../utils/profiles';
 import { compareWithPrevious, longDate, shortDateTime } from '../utils/resultSummary';
 import { confirmDialog } from '../utils/dialog';
 
+// 每一種測驗：分頁名稱、趨勢圖要畫什麼、圖例
 const TABS = [
-  { key: 'clock', label: '畫鐘測驗', color: accents.canvas },
-  { key: 'trail', label: '連線測驗', color: accents.trail },
+  {
+    key: 'minicog', label: 'Mini-Cog', name: 'Mini-Cog', color: accents.minicog, route: '/mini-cog',
+    chartTitle: '總分（滿分 5，低於 3 分建議進一步評估）', max: 5,
+    bar: r => ({ value: r.total, color: r.positive ? colors.bad : r.sensitivePositive ? colors.partial : colors.good }),
+    legend: [[colors.good, '4～5 分'], [colors.partial, '3 分'], [colors.bad, '0～2 分']],
+  },
+  {
+    key: 'clock', label: '畫鐘', name: '畫鐘', color: accents.canvas, route: '/canvas-drawing',
+    chartTitle: '數字分數（滿分 5）', max: 5,
+    bar: r => ({ value: r.numberScore, color: r.mocaPassed === r.mocaTotal ? colors.good : r.mocaPassed > 0 ? colors.partial : colors.bad }),
+    legend: [[colors.good, 'MoCA 畫鐘全部通過'], [colors.partial, '部分通過'], [colors.bad, '都未通過']],
+  },
+  {
+    key: 'trail', label: '連線', name: '連線', color: accents.trail, route: '/trail-making',
+    chartTitle: 'B 部分完成時間（越短越好）', max: undefined,
+    bar: r => ({ value: r.bSec, valueText: r.bSec == null ? '未完成' : `${Math.round(r.bSec)}秒`, color: r.mocaPass ? colors.good : accents.trail }),
+    legend: [[colors.good, 'MoCA 連線題通過'], [accents.trail, '未通過']],
+  },
 ];
 const CHART_COUNT = 10; // 趨勢圖顯示最近幾次
 
@@ -23,7 +40,8 @@ const dayLabel = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/$
 export default function HistoryScreen() {
   const state = useProfiles();
   const active = state.profiles.find(p => p.id === state.activeId) || null;
-  const [tab, setTab] = useState('clock');
+  const [tab, setTab] = useState('minicog');
+  const cfg = TABS.find(t => t.key === tab);
   const [open, setOpen] = useState(null);
 
   const records = useMemo(
@@ -33,7 +51,7 @@ export default function HistoryScreen() {
   );
   const counts = useMemo(() => {
     const mine = active ? state.results.filter(r => r.profileId === active.id) : [];
-    return { clock: mine.filter(r => r.type === 'clock').length, trail: mine.filter(r => r.type === 'trail').length };
+    return Object.fromEntries(TABS.map(t => [t.key, mine.filter(r => r.type === t.key).length]));
   }, [active, state.results]);
 
   if (!active) {
@@ -46,22 +64,11 @@ export default function HistoryScreen() {
     );
   }
 
-  const chartItems = records.slice(0, CHART_COUNT).reverse().map(r =>
-    tab === 'clock'
-      ? {
-          key: r.id, value: r.numberScore, label: dayLabel(r.at),
-          color: r.mocaPassed === r.mocaTotal ? colors.good : r.mocaPassed > 0 ? colors.partial : colors.bad,
-        }
-      : {
-          key: r.id, value: r.bSec, label: dayLabel(r.at),
-          valueText: r.bSec == null ? '未完成' : `${Math.round(r.bSec)}秒`,
-          color: r.mocaPass ? colors.good : accents.trail,
-        }
-  );
+  const chartItems = records.slice(0, CHART_COUNT).reverse().map(r => ({ key: r.id, label: dayLabel(r.at), ...cfg.bar(r) }));
   const compare = compareWithPrevious(records);
 
   const remove = r => {
-    confirmDialog('刪除這筆紀錄？', `${shortDateTime(r.at)} 的${tab === 'clock' ? '畫鐘' : '連線'}測驗`, { okText: '刪除', destructive: true })
+    confirmDialog('刪除這筆紀錄？', `${shortDateTime(r.at)} 的${cfg.name}測驗`, { okText: '刪除', destructive: true })
       .then(ok => ok && profileStore.deleteResult(r.id));
   };
 
@@ -74,7 +81,7 @@ export default function HistoryScreen() {
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{active.name}</Text>
           <Text style={styles.sub}>{profileSubtitle(active) || '未填基本資料'}</Text>
-          <Text style={styles.meta}>建立於 {longDate(active.createdAt)}・共 {counts.clock + counts.trail} 筆紀錄</Text>
+          <Text style={styles.meta}>建立於 {longDate(active.createdAt)}・共 {Object.values(counts).reduce((a, b) => a + b, 0)} 筆紀錄</Text>
         </View>
         <Pressable
           hitSlop={12}
@@ -95,26 +102,25 @@ export default function HistoryScreen() {
       {records.length === 0 ? (
         <Card style={styles.center}>
           <Ionicons name="document-text-outline" size={40} color={colors.inkFaint} />
-          <Text style={styles.emptyText}>還沒有{tab === 'clock' ? '畫鐘' : '連線'}測驗的紀錄</Text>
+          <Text style={styles.emptyText}>還沒有{cfg.name}測驗的紀錄</Text>
           <Button
-            title={tab === 'clock' ? '開始畫鐘測驗' : '開始連線測驗'}
+            title={`開始${cfg.name}測驗`}
             compact
-            onPress={() => router.push(tab === 'clock' ? '/canvas-drawing' : '/trail-making')}
+            color={cfg.color}
+            onPress={() => router.push(cfg.route)}
             style={{ marginTop: space.md }}
           />
         </Card>
       ) : (
         <>
           <Card>
-            <Text style={styles.cardTitle}>{tab === 'clock' ? '數字分數（滿分 5）' : 'B 部分完成時間（越短越好）'}</Text>
+            <Text style={styles.cardTitle}>{cfg.chartTitle}</Text>
             <Text style={styles.cardSub}>最近 {chartItems.length} 次・由舊到新</Text>
             <View style={{ marginTop: space.lg }}>
-              <TrendBars items={chartItems} max={tab === 'clock' ? 5 : undefined} color={tab === 'clock' ? accents.canvas : accents.trail} />
+              <TrendBars items={chartItems} max={cfg.max} color={cfg.color} />
             </View>
             <View style={styles.legend}>
-              <Legend color={colors.good} label={tab === 'clock' ? 'MoCA 畫鐘全部通過' : 'MoCA 連線題通過'} />
-              {tab === 'clock' && <Legend color={colors.partial} label="部分通過" />}
-              <Legend color={tab === 'clock' ? colors.bad : accents.trail} label={tab === 'clock' ? '都未通過' : '未通過'} />
+              {cfg.legend.map(([c, l]) => <Legend key={l} color={c} label={l} />)}
             </View>
             {compare && <View style={{ marginTop: space.md }}><Banner kind="info" icon="swap-vertical">{compare}</Banner></View>}
           </Card>
@@ -147,7 +153,10 @@ function Legend({ color, label }) {
 
 const MODE = { canvas: '手機手繪', photo: '紙本拍照' };
 
+const RECALL_MODE = { examiner: '有人陪同', self: '自己作答' };
+
 function RecordRow({ r, open, onToggle, onDelete }) {
+  if (r.type === 'minicog') return <MiniCogRow r={r} open={open} onToggle={onToggle} onDelete={onDelete} />;
   const clock = r.type === 'clock';
   const pass = clock ? r.mocaPassed === r.mocaTotal : r.mocaPass;
   return (
@@ -199,6 +208,34 @@ function RecordRow({ r, open, onToggle, onDelete }) {
   );
 }
 
+function MiniCogRow({ r, open, onToggle, onDelete }) {
+  const tone = r.positive ? [colors.badSoft, colors.bad, '建議評估'] : r.sensitivePositive ? [colors.warnSoft, colors.warn, '留意追蹤'] : [colors.goodSoft, colors.good, '正常'];
+  return (
+    <Card style={styles.record}>
+      <Pressable onPress={onToggle} style={styles.recordHead} accessibilityRole="button">
+        <View style={{ flex: 1 }}>
+          <Text style={styles.recordDate}>{shortDateTime(r.at)}</Text>
+          <Text style={styles.recordMode}>{`回想 ${r.recall}/3・畫鐘 ${r.clockPoints}/2・${RECALL_MODE[r.recallMode] ?? ''}`}</Text>
+        </View>
+        <Text style={styles.recordScore}>{r.total}<Text style={styles.recordMax}> / 5</Text></Text>
+        <View style={[styles.passPill, { backgroundColor: tone[0] }]}>
+          <Text style={[styles.passText, { color: tone[1] }]}>{tone[2]}</Text>
+        </View>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={20} color={colors.inkFaint} />
+      </Pressable>
+      {open && (
+        <View style={styles.detail}>
+          <KeyValue label="回想三個詞" value={`${r.recall} / 3`} />
+          <KeyValue label="畫鐘" value={`${r.clockPoints} / 2（${r.clockNormal ? '正常' : '不正常'}）`} />
+          <KeyValue label="作答方式" value={RECALL_MODE[r.recallMode] ?? '—'} />
+          <KeyValue label="詞組" value={`第 ${r.wordVersion} 組`} last />
+          <Button title="刪除這筆紀錄" variant="danger" compact icon="trash-outline" onPress={onDelete} style={{ marginTop: space.md }} />
+        </View>
+      )}
+    </Card>
+  );
+}
+
 const fmtSec = s => (s == null ? '未完成' : `${s.toFixed(1)} 秒`);
 
 const styles = StyleSheet.create({
@@ -212,7 +249,7 @@ const styles = StyleSheet.create({
   sub: { ...type.small, marginTop: 2 },
   meta: { ...type.caption, marginTop: 2 },
 
-  tabs: { flexDirection: 'row', gap: space.sm, marginVertical: space.lg },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginVertical: space.lg },
   cardTitle: { ...type.subtitle },
   cardSub: { ...type.caption, marginTop: 2 },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md, marginTop: space.md },

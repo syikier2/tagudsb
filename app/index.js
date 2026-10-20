@@ -22,6 +22,7 @@ const CONSENT_TEXT =
   '是否同意開啟？';
 
 const TESTS = [
+  { route: '/mini-cog', icon: 'flash-outline', color: accents.minicog, title: 'Mini-Cog 快速篩檢', desc: '記三個詞＋畫鐘，約 3 分鐘', badge: '推薦' },
   { route: '/canvas-drawing', icon: 'create-outline', color: accents.canvas, title: '在螢幕上畫鐘', desc: '用手指（或滑鼠）直接畫時鐘' },
   { route: '/photo-drawing', icon: 'camera-outline', color: accents.photo, title: '拍攝紙上畫鐘', desc: '拍下在紙上畫好的時鐘' },
   { route: '/trail-making', icon: 'git-network-outline', color: accents.trail, title: '連線測驗', desc: '依序把數字和天干連起來' },
@@ -50,7 +51,7 @@ export default function Home() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ headerShown: false, title: '首頁' }} />
+      <Stack.Screen options={{ headerShown: false, title: '大腦健康檢測' }} />
 
       <Text style={styles.hello}>大腦健康檢測</Text>
       <Text style={styles.helloSub}>畫鐘與連線測驗・認知功能篩檢輔助</Text>
@@ -89,7 +90,10 @@ export default function Home() {
               <Ionicons name={t.icon} size={30} color="#FFFFFF" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.testTitle}>{t.title}</Text>
+              <View style={styles.titleRow}>
+                <Text style={styles.testTitle}>{t.title}</Text>
+                {t.badge && <Text style={[styles.badge, { color: t.color, borderColor: t.color }]}>{t.badge}</Text>}
+              </View>
               <Text style={styles.testDesc}>{t.desc}</Text>
             </View>
             <Ionicons name="chevron-forward" size={26} color={colors.inkFaint} />
@@ -169,7 +173,9 @@ const styles = StyleSheet.create({
 
   testCard: { flexDirection: 'row', alignItems: 'center', gap: space.lg, paddingVertical: space.lg },
   testIcon: { width: 58, height: 58, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-  testTitle: { fontSize: 21, fontWeight: '800', color: colors.ink },
+  testTitle: { fontSize: 21, fontWeight: '800', color: colors.ink, flexShrink: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  badge: { fontSize: 12, fontWeight: '800', borderWidth: 1.5, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 1, overflow: 'hidden' },
   testDesc: { ...type.small, marginTop: 2 },
 
   cloudRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },

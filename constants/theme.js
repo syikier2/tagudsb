@@ -30,6 +30,7 @@ export const accents = {
   photo: '#B5622B',
   trail: '#4F5FA8',
   history: '#6B5B8C',
+  minicog: '#9A4D6A',
 };
 
 export const radius = { sm: 10, md: 14, lg: 20, pill: 999 };

@@ -5,15 +5,16 @@
 //    若首頁開啟「雲端輔助辨識」，沒把握的字再送 Google Cloud Vision 給第二意見（utils/cloudAssist.js）
 // 3. 數字位置評分（utils/clockScoring.js）、指針評分（utils/handsScoring.js）
 // 4. 作畫過程指標，只供觀察不計分（utils/drawingStats.js）
-import { Stack } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useWindowSize } from '../hooks/useWindowSize';
 import DrawingCanvas from '../components/DrawingCanvas';
 import { ClockResult, DebugPanel, DrawingProcess, ErrorBox, HandsResult, readingText } from '../components/ClockResult';
 import { CollectedNotice, SavedNotice, TesterBar } from '../components/TesterBar';
-import { Button } from '../components/ui';
+import { Banner, Button } from '../components/ui';
 import { accents, colors, radius, space, type } from '../constants/theme';
+import { updateMiniCog } from '../utils/miniCogSession';
 import { profileStore } from '../utils/profiles';
 import { collectSamples } from '../utils/samples';
 import { clockSummary } from '../utils/resultSummary';
@@ -33,6 +34,8 @@ const NUMBER_QUADRANT_TOLERANCE = 45; // MoCA「數字位置大致正確」：�
 const newSession = () => ({ startedAt: null, clears: 0, undos: 0, recordId: null, collected: false });
 
 export default function CanvasDrawingScreen() {
+  const { flow } = useLocalSearchParams();
+  const miniCog = flow === 'minicog'; // 從 Mini-Cog 流程進來（畫完要回去回想三個詞）
   const { width, height } = useWindowSize();
   // 畫布固定為正方形，圓圈才會是正圓
   const canvasSize = Math.max(0, Math.min(width - 40, height * 0.5));
@@ -186,7 +189,13 @@ export default function CanvasDrawingScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ title: '手繪畫鐘測驗' }} />
       <ScrollView contentContainerStyle={styles.scrollContent} scrollEnabled={scrollEnabled}>
-        <TesterBar />
+        {miniCog ? (
+          <View style={{ width: '100%', marginBottom: 12 }}>
+            <Banner kind="info" icon="time-outline">Mini-Cog 第 2 步：畫鐘（這不是記憶測驗，盡量在 3 分鐘內完成）</Banner>
+          </View>
+        ) : (
+          <TesterBar />
+        )}
         <View style={styles.header}>
           <Text style={styles.subtitle}>請在圓圈裡寫上 1～12</Text>
           <Text style={styles.subtitle}>再從中心畫兩根指針，指向 {TIME_TEXT}</Text>
@@ -224,6 +233,18 @@ export default function CanvasDrawingScreen() {
         <ErrorBox message={error} />
         {!loading && result && (
           <>
+            {miniCog && (
+              <Button
+                title="下一步：回想三個詞"
+                icon="arrow-forward"
+                color={accents.minicog}
+                onPress={() => {
+                  updateMiniCog({ clock: { numbersPass: result.numbersPass, hands: result.hands, durationSec: result.stats?.durationSec ?? null } });
+                  router.back();
+                }}
+                style={{ alignSelf: 'stretch', marginTop: 16, minHeight: 60 }}
+              />
+            )}
             <SavedNotice saved={saved} />
             <CollectedNotice count={collected} />
             <ClockResult result={result.numbers} accent={accents.canvas} title="數字評估" />

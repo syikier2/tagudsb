@@ -45,10 +45,30 @@ export function trailSummary(a, b, sum, layouts = null) {
   };
 }
 
+/** Mini-Cog */
+export function miniCogSummary(score, { version, mode, clockMode = 'canvas' }) {
+  return {
+    type: 'minicog',
+    total: score.total,
+    recall: score.recall,
+    clockPoints: score.clockPoints,
+    clockNormal: score.clockNormal,
+    positive: score.positive,
+    sensitivePositive: score.sensitivePositive,
+    wordVersion: version,
+    recallMode: mode, // 'examiner' = 施測者記錄（官方做法）；'self' = 自行作答（選擇題）
+    clockMode,
+  };
+}
+
 /** 和上一次比較的一句話（records：新的在前） */
 export function compareWithPrevious(records) {
   const [cur, prev] = records;
   if (!cur || !prev) return null;
+  if (cur.type === 'minicog') {
+    const d = cur.total - prev.total;
+    return d === 0 ? '總分和上次相同' : `總分比上次${d > 0 ? '多' : '少'} ${Math.abs(d)} 分`;
+  }
   if (cur.type === 'clock') {
     const d = cur.numberScore - prev.numberScore;
     return d === 0 ? '數字分數和上次相同' : `數字分數比上次${d > 0 ? '多' : '少'} ${Math.abs(d)} 分`;

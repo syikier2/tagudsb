@@ -41,3 +41,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+# 辨識樣本收集匯出的檔案（志願者的筆跡，不上傳到公開的 GitHub）
+samples/
