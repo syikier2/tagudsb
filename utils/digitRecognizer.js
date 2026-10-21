@@ -128,6 +128,9 @@ function arc(cx, cy, rx, ry, fromDeg, toDeg, steps = 16) {
   return pts;
 }
 
+/** 標記只用在手繪（有筆順）的範本 */
+const ORDERED_ONLY = strokes => Object.assign(strokes, { orderedOnly: true });
+
 const TEMPLATE_STROKES = {
   0: [
     [arc(0.3, 0.5, 0.3, 0.5, -90, 270)],
@@ -155,6 +158,11 @@ const TEMPLATE_STROKES = {
     [[...arc(0.28, 0.25, 0.27, 0.25, 200, 450), ...arc(0.28, 0.73, 0.3, 0.27, 270, 520)]],
     [[[0, 0], [0.6, 0], [0.25, 0.42], ...arc(0.28, 0.7, 0.3, 0.3, 250, 520)]],
     [[...arc(0.3, 0.24, 0.25, 0.24, 210, 450), ...arc(0.3, 0.72, 0.3, 0.28, 270, 500)]],
+    // 中間一橫拉得很長、往左畫出去再折回來的 3（志願者樣本 2026-10）
+    // （只用在手繪：照片骨架沒有「折回來」的筆順資訊，用了反而會把照片裡的 8 認成 3）
+    ORDERED_ONLY([[[0.1, 0.02], [0.4, 0], [0.58, 0.08], [0.6, 0.22], [0.5, 0.36], [0.3, 0.44], [0, 0.46], [0.3, 0.46], [0.52, 0.52], [0.6, 0.68], [0.55, 0.88], [0.35, 1], [0.1, 1], [0.02, 0.94]]]),
+    // 同上，但上面是平的
+    ORDERED_ONLY([[[0, 0], [0.5, 0], [0.6, 0.08], [0.58, 0.25], [0.45, 0.42], [0.05, 0.48], [0.45, 0.5], [0.6, 0.62], [0.6, 0.85], [0.5, 0.98], [0, 1]]]),
   ],
   4: [
     [[[0.42, 0], [0, 0.65], [0.6, 0.65]], [[0.45, 0.25], [0.45, 1]]],
@@ -217,6 +225,7 @@ for (const [digit, variants] of Object.entries(TEMPLATE_STROKES)) {
   for (const strokes of variants) {
     TEMPLATES.push({
       digit,
+      orderedOnly: Boolean(strokes.orderedOnly),
       cloud: strokesToCloud(strokes.map(s => ({ points: s.map(([x, y]) => ({ x, y })) }))),
     });
   }
@@ -237,9 +246,10 @@ const LOOP_TIEBREAK_RATIO = 1.6; // 前兩名的距離比在這以內，才用�
  * @param {boolean|null} hasLoop 這個字有沒有封閉的圈（null = 不知道，不使用）
  * @returns {{ digit, distance, second, secondDistance, confident, byLoop }}
  */
-export function classifyCloud(cloud, hasLoop = null) {
+export function classifyCloud(cloud, hasLoop = null, { unordered = false } = {}) {
   const best = new Map(); // 每個數字取最接近的範本
   for (const t of TEMPLATES) {
+    if (unordered && t.orderedOnly) continue;
     const d = greedyCloudMatch(cloud, t.cloud);
     if (!best.has(t.digit) || d < best.get(t.digit)) best.set(t.digit, d);
   }
@@ -267,6 +277,16 @@ export function classifyCloud(cloud, hasLoop = null) {
  * 判斷筆畫有沒有封閉的圈：同一筆畫中，沿著筆跡走了一段距離後又回到很靠近之前經過的地方
  * （例如 9 上面的圈、6 下面的圈）。帶勾的 7、斜斜的 1 都不會有。
  */
+const MIN_LOOP_AREA = 0.03; // 圈圍出的面積至少要（字高²）的 3%
+
+/** pts[i..j] 這段路徑（首尾相連）圍出的面積（鞋帶公式） */
+function enclosedArea(pts, i, j) {
+  let a = 0;
+  for (let k = i; k < j; k++) a += pts[k].x * pts[k + 1].y - pts[k + 1].x * pts[k].y;
+  a += pts[j].x * pts[i].y - pts[i].x * pts[j].y;
+  return Math.abs(a) / 2;
+}
+
 export function hasClosedLoop(strokes) {
   let y0 = Infinity, y1 = -Infinity;
   for (const s of strokes) for (const p of s.points) { y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
@@ -283,7 +303,8 @@ export function hasClosedLoop(strokes) {
     const minGap = Math.max(0.3 * acc, 0.6 * h); // 至少要繞一段路才算圈
     for (let i = 0; i < pts.length; i++) {
       for (let j = i + 1; j < pts.length; j++) {
-        if (pts[j].d - pts[i].d >= minGap && dist(pts[i], pts[j]) < near) return true;
+        // 繞回來的這一段還要「圍出一塊面積」才算圈；沿著同一條線畫出去又折回來（例如 3 中間的一橫）面積接近 0
+        if (pts[j].d - pts[i].d >= minGap && dist(pts[i], pts[j]) < near && enclosedArea(pts, i, j) >= MIN_LOOP_AREA * h * h) return true;
       }
     }
   }
@@ -303,6 +324,8 @@ function strokeBox(s) {
  * 把一組筆畫依左右位置切成單一字元：左右範圍重疊較多的筆畫屬於同一個字（例如 4 的兩筆），
  * 左右分開的筆畫是不同的字（例如 10 的 1 和 0）
  */
+const SHORT_PART_MAX_GAP = 0.12; // 矮的封閉圈和旁邊相隔超過字高的 12%，就當成獨立的字
+
 export function segmentCharacters(strokes) {
   let items = strokes.map(s => ({ s, box: strokeBox(s) }));
   // 忽略相對很小的點（例如手指離開螢幕時多點到的一下），避免被當成一個「1」
@@ -342,6 +365,11 @@ export function segmentCharacters(strokes) {
     const left = groups[i - 1], right = groups[i + 1];
     const gapTo = n => (n ? Math.max(0, Math.max(n.box.x0, groups[i].box.x0) - Math.min(n.box.x1, groups[i].box.x1)) : Infinity);
     const target = gapTo(left) <= gapTo(right) ? i - 1 : i + 1;
+    // 離左右兩邊都有一段距離、而且自己是封閉圈的矮字，是獨立的字（例如 10 的 0 寫得比較小），不要併進去；
+    // 4 左上角的短短一撇不是封閉的，照樣併進去
+    const g = groups[i].strokes;
+    const closed = g.some(st => st.unordered) ? g.some(st => st.loop) : hasClosedLoop(g);
+    if (closed && Math.min(gapTo(left), gapTo(right)) >= SHORT_PART_MAX_GAP * tallest) break;
     groups[target].strokes.push(...groups[i].strokes);
     groups[target].box = mergeBoxes(groups[target].box, groups[i].box);
     groups.splice(i, 1);
@@ -380,7 +408,7 @@ function classifyGroup(strokes) {
     // 拍照模式：點沒有順序，圈圈資訊在影像處理時就判斷好了（s.loop）
     const pts = strokes.flatMap(s => s.points);
     const cloud = normalize(farthestPointSample(pts, N).map(p => ({ x: p.x, y: p.y, id: 0 })));
-    return classifyCloud(cloud, strokes.some(s => s.loop));
+    return classifyCloud(cloud, strokes.some(s => s.loop), { unordered: true });
   }
   return classifyCloud(strokesToCloud(strokes), hasClosedLoop(strokes));
 }

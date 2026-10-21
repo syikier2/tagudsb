@@ -63,3 +63,16 @@ test('手指多點到的小點不會被當成一個字', () => {
   const dot = { points: [{ x: 13, y: 45 }] };
   assert.equal(recognizeCluster({ strokes: [seven, dot] }).digits, '7');
 });
+
+test('App 收集的手繪樣本（44 個，含中間一橫拉長的 3、寫得比較小的 10）：至少 43 個辨識正確', async () => {
+  const { recognizeSample } = await import('../scripts/cloud-compare-lib.mjs');
+  const data = JSON.parse(readFileSync(new URL('./fixtures/canvas-samples.json', import.meta.url), 'utf8'));
+  const wrong = data.samples.filter(s => recognizeSample(s).digits !== s.truth).map(s => `「${s.truth}」被認成「${recognizeSample(s).digits}」`);
+  assert.ok(wrong.length <= 1, `辨識錯誤：\n${wrong.join('\n')}`);
+});
+
+test('來回畫同一條線（3 中間的一橫）不算封閉的圈；真的圈才算', () => {
+  const retrace = { points: densify([[0.1, 0], [0.55, 0.1], [0.45, 0.4], [0, 0.46], [0.35, 0.47], [0.6, 0.7], [0.4, 1], [0, 0.95]], { scale: 100 }) };
+  assert.equal(hasClosedLoop([retrace]), false);
+  assert.equal(hasClosedLoop(GLYPHS[9].map(pl => ({ points: densify(pl, { scale: 100 }) }))), true);
+});
