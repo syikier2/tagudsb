@@ -14,6 +14,7 @@ import { ClockResult, DebugPanel, ErrorBox, HandsResult, readingText } from '../
 import { CollectedNotice, SavedNotice, TesterBar } from '../components/TesterBar';
 import { Button } from '../components/ui';
 import { accents, colors, radius, space, type } from '../constants/theme';
+import { drawingStore } from '../utils/drawings';
 import { profileStore } from '../utils/profiles';
 import { collectSamples } from '../utils/samples';
 import { clockSummary } from '../utils/resultSummary';
@@ -32,6 +33,17 @@ const PICKER_OPTIONS = {
   aspect: [1, 1],
   quality: 1,
 };
+
+/** 把照片縮小到寬 360（約 15～30KB）存起來，給人工評分（盲評）用 */
+async function saveSmallPhoto(uri, id) {
+  try {
+    const small = await ImageManipulator.manipulate(uri).resize({ width: 360 }).renderAsync();
+    const out = await small.saveAsync({ compress: 0.6, format: SaveFormat.JPEG, base64: true });
+    if (await drawingStore.save(id, { kind: 'photo', jpeg: out.base64 })) profileStore.setHasDrawing(id);
+  } catch (e) {
+    console.warn('保存照片失敗', e);
+  }
+}
 
 export default function PhotoDrawingScreen() {
   const { width } = useWindowSize();
@@ -91,7 +103,9 @@ export default function PhotoDrawingScreen() {
         return;
       }
       setResult(r);
-      setSavedRecord(profileStore.addResult(clockSummary('photo', r))); // 存到目前受測者的歷史紀錄
+      const record = profileStore.addResult(clockSummary('photo', r)); // 存到目前受測者的歷史紀錄
+      setSavedRecord(record);
+      if (record) saveSmallPhoto(uri, record.id); // 保存縮小的照片，之後人工評分時看
       setCollected(collectSamples({
         clusters: r.debug.clusters, recs: r.debug.readings.map(x => x.rec), scored: r.numbers, kind: 'photo',
       }));

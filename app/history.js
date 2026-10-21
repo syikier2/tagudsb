@@ -7,7 +7,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TrendBars } from '../components/TrendBars';
 import { Avatar, Banner, Button, Card, Chip, KeyValue, SectionTitle } from '../components/ui';
 import { accents, colors, radius, space, type } from '../constants/theme';
-import { educationBonus, profileSubtitle } from '../utils/profileStore';
+import { educationBonus, profileSubtitle, resultsOf } from '../utils/profileStore';
 import { profileStore, useProfiles } from '../utils/profiles';
 import { compareWithPrevious, longDate, shortDateTime } from '../utils/resultSummary';
 import { confirmDialog } from '../utils/dialog';
@@ -45,8 +45,7 @@ export default function HistoryScreen() {
   const [open, setOpen] = useState(null);
 
   const records = useMemo(
-    () => (active ? profileStore.resultsFor(active.id, tab) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => (active ? resultsOf(state.results, active.id, tab) : []),
     [active, tab, state.results]
   );
   const counts = useMemo(() => {

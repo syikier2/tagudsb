@@ -23,6 +23,9 @@ export function clockSummary(mode, r) {
     mocaTotal: total,
     durationSec: r.stats?.durationSec ?? null,
     strokes: r.stats?.strokeCount ?? null,
+    // 人工評分比較用：Mini-Cog 畫鐘只看「兩根指針、方向正確」，不看長短
+    handsCount: Boolean(r.hands?.checks?.count),
+    handsDirection: Boolean(r.hands?.checks?.direction),
     cloudAsked: r.cloud?.asked ?? null,
   };
 }

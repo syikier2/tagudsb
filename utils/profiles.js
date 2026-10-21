@@ -3,9 +3,11 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
+import { drawingStore } from './drawings';
 import { createProfileStore } from './profileStore';
 
-export const profileStore = createProfileStore(AsyncStorage);
+// 刪除紀錄時，一併刪除它保存的畫鐘圖
+export const profileStore = createProfileStore(AsyncStorage, { onRemoveResults: ids => drawingStore.remove(ids) });
 
 let loading = null;
 /** App 啟動時呼叫一次（app/_layout.js） */

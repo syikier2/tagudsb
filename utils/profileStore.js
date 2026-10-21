@@ -75,10 +75,25 @@ function cleanProfile(p) {
 }
 
 /**
+ * 從 results 陣列挑出某位受測者的紀錄，新的在前。
+ * 畫面上請用這個（傳入 useProfiles() 的 state.results），資料改變時畫面才會跟著更新。
+ */
+export function resultsOf(results, profileId, type = null) {
+  return results
+    .filter(r => r.profileId === profileId && (!type || r.type === type))
+    .sort((a, b) => (a.at < b.at ? 1 : -1));
+}
+
+/** 所有受測者的畫鐘紀錄（人工評分用），新的在前 */
+export function clockResultsOf(results) {
+  return results.filter(r => r.type === 'clock').sort((a, b) => (a.at < b.at ? 1 : -1));
+}
+
+/**
  * @param {{ getItem(key): Promise<string|null>, setItem(key, value): Promise<void> }} storage
  */
-export function createProfileStore(storage) {
-  let state = { ...EMPTY, loaded: false };
+export function createProfileStore(storage, { onRemoveResults = () => {} } = {}) {
+  let state = { ...EMPTY, rater: '', loaded: false };
   const listeners = new Set();
   let saving = Promise.resolve();
 
@@ -86,9 +101,9 @@ export function createProfileStore(storage) {
   const set = next => {
     state = { ...next, loaded: true };
     emit();
-    const { profiles, activeId, results } = state;
+    const { profiles, activeId, results, rater } = state;
     // 依序寫入，避免較舊的內容蓋掉較新的
-    saving = saving.then(() => storage.setItem(STORAGE_KEY, JSON.stringify({ profiles, activeId, results }))).catch(e => {
+    saving = saving.then(() => storage.setItem(STORAGE_KEY, JSON.stringify({ profiles, activeId, results, rater }))).catch(e => {
       console.warn('儲存受測者資料失敗', e);
     });
   };
@@ -115,6 +130,7 @@ export function createProfileStore(storage) {
         profiles: Array.isArray(saved?.profiles) ? saved.profiles : [],
         activeId: saved?.activeId ?? null,
         results: Array.isArray(saved?.results) ? saved.results : [],
+        rater: typeof saved?.rater === 'string' ? saved.rater : '',
         loaded: true,
       };
       if (state.activeId && !state.profiles.some(p => p.id === state.activeId)) state.activeId = null;
@@ -140,6 +156,7 @@ export function createProfileStore(storage) {
 
     /** 刪除受測者，連同他的所有紀錄 */
     deleteProfile(id) {
+      onRemoveResults(state.results.filter(r => r.profileId === id).map(r => r.id));
       set({
         ...state,
         profiles: state.profiles.filter(p => p.id !== id),
@@ -165,6 +182,7 @@ export function createProfileStore(storage) {
       const mine = results.filter(r => r.profileId === profileId);
       if (mine.length > MAX_RESULTS_PER_PROFILE) {
         const drop = new Set(mine.slice(0, mine.length - MAX_RESULTS_PER_PROFILE).map(r => r.id));
+        onRemoveResults([...drop]);
         results = results.filter(r => !drop.has(r.id));
       }
       set({ ...state, results });
@@ -172,14 +190,39 @@ export function createProfileStore(storage) {
     },
 
     deleteResult(id) {
+      onRemoveResults([id]);
       set({ ...state, results: state.results.filter(r => r.id !== id) });
+    },
+
+    /** 標記這筆紀錄有沒有保存畫鐘圖（給人工評分看） */
+    setHasDrawing(id, has = true) {
+      set({ ...state, results: state.results.map(r => (r.id === id ? { ...r, hasDrawing: has } : r)) });
+    },
+
+    // ---- 人工評分 ----
+    setRater(name) { set({ ...state, rater: String(name || '').trim().slice(0, 20) }); },
+
+    /** 存一位評分者對一筆紀錄的評分（同一位評分者再評一次會覆蓋） */
+    addRating(resultId, rating) {
+      const rater = String(rating.rater || '').trim();
+      if (!rater) throw new Error('請先輸入評分者代號');
+      const entry = { ...rating, rater, at: new Date().toISOString() };
+      set({
+        ...state,
+        results: state.results.map(r =>
+          r.id === resultId ? { ...r, ratings: [...(r.ratings || []).filter(x => x.rater !== rater), entry] } : r
+        ),
+      });
+    },
+
+    /** 所有受測者的畫鐘紀錄（人工評分用），新的在前 */
+    allClockResults() {
+      return clockResultsOf(state.results);
     },
 
     /** 某位受測者的紀錄，新的在前 */
     resultsFor(profileId, type = null) {
-      return state.results
-        .filter(r => r.profileId === profileId && (!type || r.type === type))
-        .sort((a, b) => (a.at < b.at ? 1 : -1));
+      return resultsOf(state.results, profileId, type);
     },
   };
 }

@@ -6,8 +6,8 @@ import { useMemo, useSyncExternalStore } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Avatar, Button, Card, SectionTitle } from '../components/ui';
 import { accents, colors, radius, space, type } from '../constants/theme';
-import { profileSubtitle } from '../utils/profileStore';
-import { profileStore, useProfiles } from '../utils/profiles';
+import { profileSubtitle, resultsOf } from '../utils/profileStore';
+import { useProfiles } from '../utils/profiles';
 import { shortDateTime } from '../utils/resultSummary';
 import { useSamples } from '../utils/samples';
 import { cloudAvailable, getCloudAssist, isWeb, setCloudAssist, subscribeSettings } from '../utils/settings';
@@ -36,9 +36,7 @@ export default function Home() {
   const samples = useSamples();
 
   const last = useMemo(
-    () => (active ? profileStore.resultsFor(active.id)[0] : null),
-    // results 改變時重新計算
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => (active ? resultsOf(state.results, active.id)[0] : null),
     [active, state.results]
   );
 
@@ -138,6 +136,15 @@ export default function Home() {
           trackColor={{ true: colors.primary, false: colors.line }}
           thumbColor="#FFFFFF"
         />
+      </Card>
+
+      <Card style={[styles.cloudRow, { marginTop: space.md }]} onPress={() => router.push('/agreement')} accessibilityLabel="人工評分與一致性">
+        <Ionicons name="people-outline" size={26} color={colors.primary} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cloudTitle}>人工評分與一致性（研究用）</Text>
+          <Text style={styles.cloudDesc}>請評分者盲評畫鐘，比較 App 和真人的判斷</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={22} color={colors.inkFaint} />
       </Card>
 
       <Card style={[styles.cloudRow, { marginTop: space.md }]} onPress={() => router.push('/samples')} accessibilityLabel="辨識樣本收集">

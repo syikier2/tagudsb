@@ -82,7 +82,7 @@ export function collectFromClock({ clusters, recs, scored, kind, contributor, at
 // ---- 儲存（和 profileStore 一樣，儲存方式由外部提供，方便測試）---------------------
 
 const STORAGE_KEY = 'tagusb.samples.v1';
-const MAX_SAMPLES = 3000;
+const MAX_SAMPLES = 1000; // 全部存在同一筆資料裡；Android 單筆資料太大（約 2MB 以上）會存不進去
 
 export function createSampleStore(storage) {
   let state = { enabled: false, contributor: '', samples: [], loaded: false };

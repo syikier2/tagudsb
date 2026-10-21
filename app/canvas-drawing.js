@@ -15,6 +15,8 @@ import { CollectedNotice, SavedNotice, TesterBar } from '../components/TesterBar
 import { Banner, Button } from '../components/ui';
 import { accents, colors, radius, space, type } from '../constants/theme';
 import { updateMiniCog } from '../utils/miniCogSession';
+import { compactStrokes } from '../utils/drawingStore';
+import { drawingStore } from '../utils/drawings';
 import { profileStore } from '../utils/profiles';
 import { collectSamples } from '../utils/samples';
 import { clockSummary } from '../utils/resultSummary';
@@ -168,6 +170,11 @@ export default function CanvasDrawingScreen() {
       if (session.current.recordId) profileStore.deleteResult(session.current.recordId);
       const record = profileStore.addResult(clockSummary('canvas', { numbers: scored, numbersPass, hands, stats, cloud }));
       session.current.recordId = record?.id ?? null;
+      // 保存筆跡，之後人工評分（盲評）時可以看到這張圖
+      if (record) {
+        drawingStore.save(record.id, compactStrokes(strokes, size.width, size.height))
+          .then(ok => ok && profileStore.setHasDrawing(record.id));
+      }
       setSaved(record);
       // 辨識樣本收集（開發用，有開啟才收；不影響評分）
       // 同一張圖重複送出只收一次
